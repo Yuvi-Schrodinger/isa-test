@@ -21,7 +21,7 @@ fb_api = GraphAPI(ad_acc, fb_api)
 
 campaign_insights = pd.DataFrame(fb_api.get_insights(ad_acc)["data"])
 adset_status = pd.DataFrame(fb_api.get_adset_status(ad_acc)["data"])
-adset_insights = pd.DataFrame(fb_api.get_insights(ad_acc, "adset")["data"])
+adset_insights = pd.DataFrame(fb_api.get_insights(ad_acc, "adsets")["data"])
 ads_insights = pd.DataFrame(fb_api.get_insights(ad_acc, "ad")["data"])
 
 
@@ -30,8 +30,8 @@ layout = html.Div([
             dbc.Row([
                 html.H3("Selecione o conjunto de anúncio:", style={"margin-top": "50px"}),
                 dcc.Dropdown(
-                    options=[{"label": i, "value": i} for i in adset_insights.adset_name.values],
-                    value=adset_insights.adset_name.values[0],
+                    options=[{"label": i, "value": i} for i in adset_insights.name.values],
+                    value=adset_insights.adsets_name.values[0],
                     id='dd-adset'),
                 ], style={"margin-bottom": "30px"}),
 
@@ -97,12 +97,19 @@ layout = html.Div([
             ], 
                 [Input("dd-adset", "value"),
                 ])
+#========== Callbacks ================
+@app.callback([
+                Output("cb-status-adset", "children"),
+                Output("adset-clicks", "children"),
+                Output("adset-spend", "children"),
+                Output("adset-conversions", "children"),
+            ], 
+                [Input("dd-adset", "value"),
+                ])
 def render_page_content(adset):
-    adset=adset_insights.adset_name.values[0]
-
     status = adset_status[adset_status["name"] == adset]["status"].values[0]
-    clicks = adset_insights[adset_insights["adset_name"] == adset]["clicks"]
-    spend = "R$ " + adset_insights[adset_insights["adset_name"] == adset]["spend"]
+    clicks = adset_insights[adset_insights["adsets_name"] == adset]["clicks"].iloc[0]
+    spend = "R$ " + str(adset_insights[adset_insights["adsets_name"] == adset]["spend"].iloc[0])
 
     adset_id = adset_status[adset_status["name"] == adset]["id"].values[0]
     data_over_time = fb_api.get_data_over_time(adset_id)
@@ -113,6 +120,7 @@ def render_page_content(adset):
     else: 
         status = dbc.Button("ACTIVE", color="primary", size="sm")
     return status, clicks, spend, conversions
+
     
 
 
@@ -137,9 +145,9 @@ def render_page_content(adset, adset_kind, theme):
     fig_line = px.line(df_data, x="date_start", y=adset_kind, template=template_from_url(theme))
     fig_line.update_layout(margin=go.layout.Margin(l=0, r=0, t=0, b=0))
     
-    df_adset = ads_insights[ads_insights["adset_name"]== adset]
+    df_adset = ads_insights[ads_insights["adsets_name"]== adset]
     fig_adsets = px.bar(df_adset, y=adset_kind, x="ad_name", template=template_from_url(theme))
     fig_adsets.update_layout(margin=go.layout.Margin(l=0, r=0, t=0, b=0))
     return fig_line, fig_adsets
 
-    
+
