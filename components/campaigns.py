@@ -4,14 +4,13 @@ from dash.dependencies import Input, Output
 import dash_bootstrap_components as dbc
 from pyrsistent import b
 from app import *
-
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from dash_bootstrap_templates import template_from_url, ThemeChangerAIO
-
-from graph_api import *
-
+from graph_api import GraphAPI
+import pandas as pd
+import streamlit as st
 
 # =========  Data Ingestion  =========== #
 fb_api = open("tokens/token").read()
@@ -19,23 +18,17 @@ ad_acc = "956757482423549"
 
 fb_api = GraphAPI(ad_acc, fb_api)
 
-campaign_insights = pd.DataFrame(fb_api.get_insights())
-adset_insights = pd.DataFrame(fb_api.get_insights(level="adset"))  # Corrigido: nível de detalhe para "adset"
-campaign_status = pd.DataFrame(fb_api.get_campaigns_status())
-
-
-adset_insights.head(3)
-# data_over_time = fb_api.get_data_over_time(23849930731190625)
-data_over_time = fb_api.get_data_over_time(120208363974670077)
-
+campaign_insights = st.dataframe(fb_api.get_insights(ad_acc)['data'])
+adset_insights = st.dataframe(fb_api.get_insights(ad_acc)['data'])
+campaign_status = st.dataframe(fb_api.get_campaigns_status(ad_acc)['data'])
 
 # =========  Layout  =========== #
 layout = html.Div([
             dbc.Row([
                 html.H3("Selecione a campanha:", style={"margin-top": "50px"}),
                 dcc.Dropdown(
-                    options=[{"label": i, "value": i} for i in campaign_insights.campaign_name.values],
-                    value=campaign_insights.campaign_name.values[0],
+                    options=[{"label": i, "value": i} for i in campaign_insights("campaign_name").values],
+                    value=campaign_insights("campaign_name").values[0],
                     id='dd-campaign'),
                 ], style={"margin-bottom": "30px"}),
 
@@ -67,21 +60,11 @@ layout = html.Div([
                             ])
                         ], color="light"),
                     ], md=2),
-                
-                dbc.Col([
-                    dbc.Card([
-                            dbc.CardHeader("Conversion"),
-                            dbc.CardBody([
-                                html.H5("", id="campaign-conversions", style={"color": "var(--bs-primary)"}),
-                            ])
-                        ], color="light"),
-                    ], md=2),
             ]),
 
             dbc.Row([
                 html.H4("Selecione o indicador:"),
-                dcc.RadioItems(options=['Spend', 'CPC', 'CPM', 'Clicks', 'Conversion'], 
-                            value='Conversion', id='campaign-kind', 
+                dcc.RadioItems(options=['Spend', 'CPC', 'CPM', 'Clicks'], 
                             inputStyle={"margin-right": "5px", "margin-left": "20px"}),
                 ], style={"margin-top": "50px"}),
 
@@ -89,15 +72,14 @@ layout = html.Div([
                 dbc.Col(dcc.Graph(id="graph-line-campaign"), md=6),
                 dbc.Col(dcc.Graph(id="graph-bar-campaign"), md=6)
                 ], style={"margin-top": "20px"}),
-            ]) 
+                ]) 
 
 #========== Callbacks ================
 @app.callback([
                 Output("cb-status", "children"),
                 Output("campaign-clicks", "children"),
                 Output("campaign-spend", "children"),
-                Output("campaign-conversions", "children"),
-            ], 
+                ], 
                 [Input("dd-campaign", "value"),
                 ])
 def render_page_content(campaign):
@@ -106,14 +88,12 @@ def render_page_content(campaign):
     spend = "R$ " + campaign_insights[campaign_insights["campaign_name"] == campaign]["spend"]
 
     campaign_id = campaign_status[campaign_status["name"] == campaign]["id"].values[0]
-    data_over_time = fb_api.get_data_over_time(campaign_id)
-    conversions = pd.DataFrame(data_over_time["data"])["conversion"].fillna(0).sum()
 
     if status == "PAUSED":
         status = dbc.Button("PAUSED", color="error", size="sm")
     else: 
         status = dbc.Button("ACTIVE", color="primary", size="sm")
-    return status, clicks, spend, conversions
+    return status, clicks, spend
     
 
 @app.callback([
@@ -139,3 +119,5 @@ def render_page_content(campaign, campaign_kind, theme):
     fig_adsets = px.bar(df_adset, y=campaign_kind, x="adset_id", template=template_from_url(theme))
     fig_adsets.update_layout(margin=go.layout.Margin(l=0, r=0, t=0, b=0))
     return fig_line, fig_adsets
+
+    
